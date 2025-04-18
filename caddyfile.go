@@ -47,6 +47,11 @@ func (m *PlaceholderDump) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 					return d.ArgErr()
 				}
 				m.File = d.Val()
+			case "logger_suffix":
+				if !d.NextArg() {
+					return d.ArgErr()
+				}
+				m.LoggerSuffix = d.Val()
 			case "content":
 				if !d.NextArg() {
 					return d.ArgErr()

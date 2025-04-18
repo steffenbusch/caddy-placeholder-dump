@@ -26,14 +26,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// PlaceholderDump is a Caddy module that dumps a placeholder to a file.
-// It logs the resolved placeholder values to the specified file.
+// PlaceholderDump is a Caddy module that dumps a placeholder to a file or logs it to a specified logger.
+// It logs the resolved placeholder values to the specified file or logger.
 type PlaceholderDump struct {
 	// File is the path to the file where the content will be written.
 	// If the file does not exist, it will be created.
 	File string `json:"file,omitempty"`
 
-	// Content is the content to be written to the file.
+	// LoggerSuffix is the suffix appended to the module's logger name.
+	// If set, the content will be logged to the logger with this suffix.
+	LoggerSuffix string `json:"logger_suffix,omitempty"`
+
+	// Content is the content to be written to the file or logged.
 	// It can contain placeholders that will be resolved at runtime.
 	Content string `json:"content,omitempty"`
 
@@ -69,8 +73,9 @@ func (m *PlaceholderDump) Provision(ctx caddy.Context) error {
 
 // Validate ensures the configuration is correct.
 func (m *PlaceholderDump) Validate() error {
-	if m.File == "" {
-		return fmt.Errorf("file must be set")
+	// Ensure at least one of File or LoggerSuffix is set.
+	if m.File == "" && m.LoggerSuffix == "" {
+		return fmt.Errorf("either file or logger_suffix must be set")
 	}
 	if m.Content == "" {
 		return fmt.Errorf("content must be set")
@@ -78,7 +83,7 @@ func (m *PlaceholderDump) Validate() error {
 	return nil
 }
 
-// ServeHTTP handles incoming HTTP requests and writes the resolved content to the specified file.
+// ServeHTTP handles incoming HTTP requests and writes the resolved content to the specified file and/or logs it.
 func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
 	// Retrieve the replacer from the request context.
 	repl, ok := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
@@ -90,30 +95,38 @@ func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 	resolvedContent := repl.ReplaceAll(m.Content, "")
 	resolvedContent = strings.TrimSpace(resolvedContent)
 
-	// Skip writing if the resolved content is empty.
+	// Skip processing if the resolved content is empty.
 	if resolvedContent == "" {
-		m.logger.Warn("Resolved content is empty; skipping write")
+		m.logger.Warn("Resolved content is empty; skipping processing")
 		return next.ServeHTTP(w, r)
 	}
 
-	// Lock the instance-specific mutex to ensure thread-safe file writes.
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	// Open the file for appending, creating it if it doesn't exist.
-	const filePermissions = 0644
-	f, err := os.OpenFile(m.File, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermissions)
-	if err != nil {
-		m.logger.Error("Failed to open file", zap.String("file", m.File), zap.Error(err))
-		return next.ServeHTTP(w, r)
+	// If LoggerSuffix is set, log the content.
+	if m.LoggerSuffix != "" {
+		m.logger.Named(m.LoggerSuffix).Info("Logging resolved content", zap.String("content", resolvedContent))
 	}
-	defer f.Close()
 
-	// Write the resolved content to the file.
-	if _, err := f.WriteString(resolvedContent + "\n"); err != nil {
-		m.logger.Error("Failed to write to file", zap.Error(err))
-	} else {
-		m.logger.Debug("Wrote content to file", zap.String("file", m.File), zap.String("content", resolvedContent))
+	// If File is set, write the content to the file.
+	if m.File != "" {
+		// Lock the instance-specific mutex to ensure thread-safe file writes.
+		m.mutex.Lock()
+		defer m.mutex.Unlock()
+
+		// Open the file for appending, creating it if it doesn't exist.
+		const filePermissions = 0644
+		f, err := os.OpenFile(m.File, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermissions)
+		if err != nil {
+			m.logger.Error("Failed to open file", zap.String("file", m.File), zap.Error(err))
+			return next.ServeHTTP(w, r)
+		}
+		defer f.Close()
+
+		// Write the resolved content to the file.
+		if _, err := f.WriteString(resolvedContent + "\n"); err != nil {
+			m.logger.Error("Failed to write to file", zap.Error(err))
+		} else {
+			m.logger.Debug("Wrote content to file", zap.String("file", m.File), zap.String("content", resolvedContent))
+		}
 	}
 
 	return next.ServeHTTP(w, r)
