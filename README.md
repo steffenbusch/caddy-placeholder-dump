@@ -38,8 +38,8 @@ The `placeholder_dump` directive can be configured in the Caddyfile. Below is an
 - **`content`**: (Required) The content to be logged or written to a file. This can include placeholders that will be resolved at runtime.
   - Example: `"Resolved placeholder: {http.request.uri}"`
 
-- **`file`**: (Optional) The path to the file where the resolved content will be written. If the file does not exist, it will be created.
-  - Example: `"/path/to/output.log"`
+- **`file`**: (Optional) The path to the file where the resolved content will be written. This option supports placeholder replacements, so you can use placeholders in the file path that will be resolved at runtime. If the file does not exist, it will be created.
+  - Examples: `"/path/to/output.log"` or `"/path/to/{time.unix.now}_trace.log"`
 
 - **`logger_suffix`**: (Optional) A suffix appended to the module's logger name (`http.handlers.placeholder_dump`). The resolved content will be logged to this logger.
   - Example: `"custom_logger"` (content will be logged at `http.handlers.placeholder_dump.custom_logger`)
@@ -85,7 +85,7 @@ Write request body of API requests to a file when the query parameter "trace=tru
 
     placeholder_dump @dump_body {
       content "{time.now.unix}: {method} request fom {client_ip} with body: {http.request.body}"
-      file "/var/log/caddy/api_trace.log"
+      file "/var/log/caddy/api_trace_{time.now.unix}.log"
     }
 
     reverse_proxy localhost:9001

@@ -1,3 +1,5 @@
 /caddy
 /Caddyfile
 /jti_blocklist.txt
+/.reflex.conf
+/dump-out
