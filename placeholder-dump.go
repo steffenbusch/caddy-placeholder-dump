@@ -31,6 +31,8 @@ import (
 type PlaceholderDump struct {
 	// File is the path to the file where the content will be written.
 	// If the file does not exist, it will be created.
+	// This field supports placeholder replacements, so you can use placeholders
+	// in the file path that will be resolved at runtime.
 	File string `json:"file,omitempty"`
 
 	// LoggerSuffix is the suffix appended to the module's logger name.
@@ -106,17 +108,18 @@ func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 		m.logger.Named(m.LoggerSuffix).Info("Logging resolved content", zap.String("content", resolvedContent))
 	}
 
-	// If File is set, write the content to the file.
-	if m.File != "" {
+	// If File is set, after resolving placeholders, write the content to the file.
+	resolvedFile := repl.ReplaceAll(m.File, "")
+	if resolvedFile != "" {
 		// Lock the instance-specific mutex to ensure thread-safe file writes.
 		m.mutex.Lock()
 		defer m.mutex.Unlock()
 
 		// Open the file for appending, creating it if it doesn't exist.
 		const filePermissions = 0644
-		f, err := os.OpenFile(m.File, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermissions)
+		f, err := os.OpenFile(resolvedFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermissions)
 		if err != nil {
-			m.logger.Error("Failed to open file", zap.String("file", m.File), zap.Error(err))
+			m.logger.Error("Failed to open file", zap.String("file", resolvedFile), zap.Error(err))
 			return next.ServeHTTP(w, r)
 		}
 		defer f.Close()
@@ -125,7 +128,7 @@ func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 		if _, err := f.WriteString(resolvedContent + "\n"); err != nil {
 			m.logger.Error("Failed to write to file", zap.Error(err))
 		} else {
-			m.logger.Debug("Wrote content to file", zap.String("file", m.File), zap.String("content", resolvedContent))
+			m.logger.Debug("Wrote content to file", zap.String("file", resolvedFile), zap.String("content", resolvedContent))
 		}
 	}
 
