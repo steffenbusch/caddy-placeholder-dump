@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -34,6 +35,12 @@ type PlaceholderDump struct {
 	// This field supports placeholder replacements, so you can use placeholders
 	// in the file path that will be resolved at runtime.
 	File string `json:"file,omitempty"`
+
+	// FilePermissions sets the permissions for the created file (octal string, e.g. "644").
+	FilePermissions string `json:"file_permissions,omitempty"`
+
+	// parsedFilePerm holds the parsed file permission as os.FileMode, set in Provision.
+	parsedFilePerm os.FileMode
 
 	// LoggerSuffix is the suffix appended to the module's logger name.
 	// If set, the content will be logged to the logger with this suffix.
@@ -70,6 +77,30 @@ func (m *PlaceholderDump) Provision(ctx caddy.Context) error {
 	if m.mutex == nil {
 		m.mutex = &sync.Mutex{}
 	}
+	// Set default file permissions if not set
+	if m.FilePermissions == "" {
+		m.FilePermissions = "644"
+	}
+	// Parse file permissions once during provisioning
+	perm := os.FileMode(0644)
+	if m.FilePermissions != "" {
+		if p, err := parseFilePerm(m.FilePermissions); err == nil {
+			perm = p
+		} else {
+			m.logger.Warn("Invalid file_permissions, using default 0644", zap.String("file_permissions", m.FilePermissions), zap.Error(err))
+		}
+	}
+	m.parsedFilePerm = perm
+
+	// Log the configuration values.
+	m.logger.Info("PlaceholderDump plugin configured",
+		zap.String("file", m.File),
+		zap.String("file_permissions", m.FilePermissions),
+		zap.String("parsed_file_permissions", perm.String()),
+		zap.String("logger_suffix", m.LoggerSuffix),
+		zap.String("content", m.Content),
+	)
+
 	return nil
 }
 
@@ -116,8 +147,7 @@ func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 		defer m.mutex.Unlock()
 
 		// Open the file for appending, creating it if it doesn't exist.
-		const filePermissions = 0644
-		f, err := os.OpenFile(resolvedFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermissions)
+		f, err := os.OpenFile(resolvedFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, m.parsedFilePerm)
 		if err != nil {
 			m.logger.Error("Failed to open file", zap.String("file", resolvedFile), zap.Error(err))
 			return next.ServeHTTP(w, r)
@@ -128,11 +158,25 @@ func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 		if _, err := f.WriteString(resolvedContent + "\n"); err != nil {
 			m.logger.Error("Failed to write to file", zap.Error(err))
 		} else {
-			m.logger.Debug("Wrote content to file", zap.String("file", resolvedFile), zap.String("content", resolvedContent))
+			m.logger.Debug("Wrote content to file",
+				zap.String("file", resolvedFile),
+				//zap.String("file_pemissions", m.parsedFilePerm.String()),
+				zap.String("content", resolvedContent),
+			)
 		}
 	}
 
 	return next.ServeHTTP(w, r)
+}
+
+// parseFilePerm parses an octal string like "644" into an os.FileMode.
+// Returns an error if the string contains non-octal digits.
+func parseFilePerm(s string) (os.FileMode, error) {
+	n, err := strconv.ParseUint(s, 8, 32)
+	if err != nil {
+		return 0, err
+	}
+	return os.FileMode(n), nil
 }
 
 // Interface guards
