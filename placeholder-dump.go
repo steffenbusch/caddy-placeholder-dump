@@ -160,7 +160,6 @@ func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 		} else {
 			m.logger.Debug("Wrote content to file",
 				zap.String("file", resolvedFile),
-				//zap.String("file_pemissions", m.parsedFilePerm.String()),
 				zap.String("content", resolvedContent),
 			)
 		}

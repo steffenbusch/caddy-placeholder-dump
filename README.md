@@ -41,7 +41,8 @@ The `placeholder_dump` directive can be configured in the Caddyfile. Below is an
 - **`file`**: (Optional) The path to the file where the resolved content will be written. This option supports placeholder replacements, so you can use placeholders in the file path that will be resolved at runtime. If the file does not exist, it will be created.
   - Examples: `"/path/to/output.log"` or `"/path/to/{time.unix.now}_trace.log"`
 
-- **`file_permissions`**: (Optional) The permissions (in octal string format, e.g. `"644"` or `"0600"`) to use when creating the file specified by `file`. Default is `"644"`. This controls the access rights for the created file.
+- **`file_permissions`**: (Optional) The permissions (in octal string format, e.g. `"644"` or `"0600"`) to use when **creating** the file specified by `file`. Default is `"644"`. This controls the access rights for the created file.
+  - **Note:** The `file_permissions` option only applies when the file is created. If the file already exists, its permissions are not changed, and the existing permissions remain in effect.
   - Example: `"600"` (owner read/write only), `"644"` (owner read/write, others read)
 
 - **`logger_suffix`**: (Optional) A suffix appended to the module's logger name (`http.handlers.placeholder_dump`). The resolved content will be logged to this logger.
