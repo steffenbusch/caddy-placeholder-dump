@@ -45,7 +45,7 @@ The `placeholder_dump` directive can be configured in the Caddyfile. Below is an
   - **Note:** The `file_permissions` option only applies when the file is created. If the file already exists, its permissions are not changed, and the existing permissions remain in effect.
   - Example: `"600"` (owner read/write only), `"644"` (owner read/write, others read)
 
-- **`logger_suffix`**: (Optional) A suffix appended to the module's logger name (`http.handlers.placeholder_dump`). The resolved content will be logged to this logger.
+- **`logger_suffix`**: (Optional) A suffix appended to the module's logger name (`http.handlers.placeholder_dump.`). The resolved content will be logged to this logger. This option support placeholder replacements.
   - Example: `"custom_logger"` (content will be logged at `http.handlers.placeholder_dump.custom_logger`)
 
 > [!NOTE]
