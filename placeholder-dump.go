@@ -134,9 +134,12 @@ func (m *PlaceholderDump) ServeHTTP(w http.ResponseWriter, r *http.Request, next
 		return next.ServeHTTP(w, r)
 	}
 
+	// Resolve placeholders in the logger suffix.
+	resolvedLoggerSuffix := repl.ReplaceAll(m.LoggerSuffix, "")
+
 	// If LoggerSuffix is set, log the content.
-	if m.LoggerSuffix != "" {
-		m.logger.Named(m.LoggerSuffix).Info("Logging resolved content", zap.String("content", resolvedContent))
+	if resolvedLoggerSuffix != "" {
+		m.logger.Named(resolvedLoggerSuffix).Info("Logging resolved content", zap.String("content", resolvedContent))
 	}
 
 	// If File is set, after resolving placeholders, write the content to the file.
